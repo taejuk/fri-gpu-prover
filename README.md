@@ -10,8 +10,14 @@ fft.cu: global memory만 사용해서 fft 구현
 
 fft_optimized.cu: global memory와 shared memory를 사용해서 fft 구현
 
+ff_optimized2.cu: shared memory의 bank conflict 회피 구현
+
 ## 성능 비교
+
+fft -> ifft 하는 시간 측정
 
 fft.cu: 평균 251.18ms
 
 fft_optimized.cu: 평균 2.17ms
+
+fft_optimized2.cu: 평균 1.96ms
