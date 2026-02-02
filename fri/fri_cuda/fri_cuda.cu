@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <cstring>
 #include <sstream>
+#include <string>
 
 #define PAD_FACTOR 4 
 #define PAD(x) (x + (x >> PAD_FACTOR))
@@ -448,10 +449,10 @@ FRICommitmentGPU fri_commitment_gpu(
 
 // ===== Main =====
 
-int main() {
+int main(int argc, char** argv) {
     std::cout << "=== CUDA FFT/IFFT with FRI Commitment ===" << std::endl << std::endl;
     
-    int log_n = 20;
+    int log_n = std::stoi(argv[1]);
     uint64_t p = 2013265921ULL;
     uint64_t root = 7;
     uint64_t n = 1ULL << log_n;

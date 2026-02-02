@@ -1,7 +1,7 @@
 #include <iostream>
 #include <vector>
 #include "polynomial.h"
-#include "merkle.h"
+#include "merkle_omp.h"
 #include "ntt_omp.h"
 #include <chrono>
 #include <cmath>
@@ -112,14 +112,14 @@ FRICommitment fri_commitment_omp(
 // ============================================================================
 // Performance Benchmarking with OpenMP
 // ============================================================================
-int main() {
+int main(int argc, char** argv ) {
     cout << "=== FRI Commitment with OpenMP Optimization ===" << endl << endl;
     auto total_start = chrono::high_resolution_clock::now();
 
     // ========================================
     // Parameter Setup
     // ========================================
-    int log_size = 20; // 2^20 = 1,048,576 elements
+    int log_size = stoi(argv[1]); // 2^20 = 1,048,576 elements
     int poly_size = (1 << log_size);
 
     cout << "Polynomial size: 2^" << log_size << " = " << poly_size << " coefficients" << endl;
@@ -169,6 +169,7 @@ int main() {
     // ========================================
     // 1. Naive Evaluation (small test size)
     // ========================================
+    /*
     cout << "--- Method 1: Naive Evaluation (OpenMP) ---" << endl;
     int test_size = (1 << 16); // 2^16 test
     vector<FieldElement> test_domain(domain.begin(), domain.begin() + test_size);
@@ -189,6 +190,7 @@ int main() {
         cout << naive_evals[i].to_string().substr(0, 8) << " ";
     }
     cout << endl << endl;
+    */
 
     // ========================================
     // 2. NTT-based Evaluation (OpenMP optimized)
@@ -246,14 +248,15 @@ int main() {
     );
 
     cout << "=== Performance Summary ===" << endl;
-    cout << "Naive (2^16, OMP): " << setw(6) << naive_duration.count() << " ms (O(n^2))" << endl;
-    cout << "NTT (2^20, OMP): " << setw(6) << ntt_duration.count() << " ms (O(n log n))" << endl;
-    
+    //cout << "Naive (2^16, OMP): " << setw(6) << naive_duration.count() << " ms (O(n^2))" << endl;
+    cout << "NTT (2^" << log_size << ", OMP): " << setw(6) << ntt_duration.count() << " ms (O(n log n))" << endl;
+    /*
     if (ntt_duration.count() > 0) {
         double speedup = (double)naive_duration.count() / ntt_duration.count();
         cout << "Speed-up (actual): " << fixed << setprecision(2) << speedup
              << "x (2^16 naive vs 2^20 NTT)" << endl;
     }
+    */
 
     cout << "FRI (all layers): " << setw(6) << fri_duration.count() << " ms" << endl;
     cout << "Total time: " << setw(6) << total_duration.count() << " ms" << endl;

@@ -433,6 +433,14 @@ int main() {
     // ... (기존 Prover 실행 코드 뒤에 추가) ...
 
     // === RUN FRI VERIFIER ===
+
+  
+    // Cleanup
+    free(h_poly);
+    cudaFree(d_coeff);
+    cudaFree(d_twiddles);
+    cudaFree(d_twiddles_inv);
+
     bool verify_result = verify_fri_proof(proof, n, p);
 
     if (verify_result) {
@@ -440,13 +448,6 @@ int main() {
     } else {
         std::cout << "\n💀 FAILURE: The Proof is invalid." << std::endl;
     }
-
-    // Cleanup
-    free(h_poly);
-    cudaFree(d_coeff);
-    cudaFree(d_twiddles);
-    cudaFree(d_twiddles_inv);
-
     
 
     

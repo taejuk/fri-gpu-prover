@@ -74,13 +74,13 @@ FRICommitment fri_commitment(
     return result;
 }
 
-int main() {
+int main(int argc, char** argv) {
     cout << "=== FRI Commitment with NTT ===" << endl << endl;
     
     auto total_start = chrono::high_resolution_clock::now();
     
     // 파라미터 설정
-    int log_size = 20;  // 2^20 = 1,048,576
+    int log_size = stoi(argv[1]);
     int poly_size = (1 << log_size);
     
     cout << "Polynomial size: 2^" << log_size << " = " << poly_size << " coefficients" << endl;
@@ -96,7 +96,7 @@ int main() {
     FieldElement cur(1);
     
     for(int i = 0; i < poly_size; i++) {
-        coeffs[i] = FieldElement(i % 1000);  // 반복되는 값으로 설정
+        coeffs[i] = FieldElement(i % 1000);
         domain[i] = cur;
         cur = cur * generator;
     }
@@ -111,6 +111,8 @@ int main() {
     // ========================================
     // 1. Naive Evaluation (작은 크기로만)
     // ========================================
+    
+    /*
     cout << "--- Method 1: Naive Evaluation ---" << endl;
     
     int test_size = (1 << 16);  // 테스트용: 2^16 크기
@@ -129,7 +131,8 @@ int main() {
         cout << naive_evals[i] << " ";
     }
     cout << endl << endl;
-    
+    */
+
     // ========================================
     // 2. NTT-based Evaluation (전체 크기)
     // ========================================
@@ -168,15 +171,17 @@ int main() {
     auto total_duration = chrono::duration_cast<chrono::milliseconds>(total_end - total_start);
     
     cout << "=== Performance Summary ===" << endl;
-    cout << "Naive (2^16):  " << setw(6) << naive_duration.count() << " ms  " 
-         << "(O(n^2))" << endl;
-    cout << "NTT (2^20):    " << setw(6) << ntt_duration.count() << " ms  " 
+    //cout << "Naive (2^16):  " << setw(6) << naive_duration.count() << " ms  " 
+    //     << "(O(n^2))" << endl;
+    cout << "NTT (2^" << log_size << "):    " << setw(6) << ntt_duration.count() << " ms  " 
          << "(O(n log n))" << endl;
+    /*
     if(ntt_duration.count() > 0) {
         double speedup = (double)naive_duration.count() / ntt_duration.count();
         cout << "Speed-up (actual): " << fixed << setprecision(2) << speedup << "x (2^16 naive vs 2^20 NTT)" << endl;
         cout << "Theoretical (size-adjusted): ~200x" << endl;
     }
+    */
     cout << "FRI (all):     " << setw(6) << fri_duration.count() << " ms" << endl;
     cout << "Total time:    " << total_duration.count() << " ms" << endl;
     
