@@ -14,3 +14,22 @@
 FRI commit (48 ms) ≈ 50× NTT (1 ms). Root cause: CPU↔GPU memcpy + CPU-side
 hashing per layer. Primary target for Week 2-3 work.
 
+
+## Day 2 — 2026-05-11
+
+### Done
+- Full sweep N=2^16..2^24 (3 trials, median).
+- Aggregated to bench_results/own_summary.md.
+- Profile report with two key observations (small-N underutilization, CPU-bound FRI commit).
+- 4–6× speedup target for Weeks 2–5 set, based on FRI/NTT ratio analysis.
+
+### Key numbers (TITAN V, BabyBear)
+| N | NTT (ms) | FRI commit (ms) | FRI/NTT |
+|---|---|---|---|
+| 2^20 | 0.93 | 28.32 | 30.5× |
+| 2^24 | 22.32 | 558.74 | 25.0× |
+
+### Next (Day 3)
+- Variance check: 5 trials spread over time (thermal/clock noise)
+- Begin ICICLE BabyBear rebuild prep (Day 4–5)
+
