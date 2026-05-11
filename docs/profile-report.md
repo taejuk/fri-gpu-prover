@@ -41,3 +41,21 @@ Cumulative target on N=2^24:
 - Week 5 end (estimated): NTT 8–12 ms, FRI commit 80–120 ms, Total 100–140 ms
 - ~5× end-to-end speedup expected.
 
+## Day 3 — Variance check
+
+10-trial variance at N=2^20:
+- **NTT: 0.92–0.96 ms** (range/median = 4.3%). Measurement noise within expected.
+- **FRI commit: 28.14–37.12 ms** (range/median = 25.5%, bimodal — fast cluster ~28 ms, slow cluster ~36 ms).
+
+The bimodal FRI commit distribution suggests CPU contention from shared-server
+co-tenants, consistent with the hypothesis that the bottleneck is CPU-side
+hashing inside the FRI commit loop. NTT, being pure GPU work, is unaffected.
+
+**Implication:** The CPU-dominated FRI commit phase is not only slow but *also
+unstable*. Moving Poseidon to GPU (Week 2) and removing CPU↔GPU per-layer
+ping-pong (Week 3) is expected to both reduce wall-clock time AND eliminate
+this variance entirely.
+
+**Revised baseline (using 10-trial median):**
+- N=2^20: NTT 0.94 ms, FRI commit 35.26 ms, Total ~37 ms
+

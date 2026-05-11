@@ -33,3 +33,20 @@ hashing per layer. Primary target for Week 2-3 work.
 - Variance check: 5 trials spread over time (thermal/clock noise)
 - Begin ICICLE BabyBear rebuild prep (Day 4–5)
 
+## Day 3 — 2026-05-11
+
+### Done
+- Variance check (10 trials @ N=2^20)
+- NTT: 4.3% range — reliable
+- FRI commit: 25.5% range, bimodal (28ms / 36ms clusters)
+- Root cause: CPU contention from shared-server co-tenants
+- ICICLE FIELD option confirmed (-DFIELD=babybear)
+- run_babybear.sh script prepared for Day 4
+
+### Insight
+Bimodal FRI variance is itself a metric — Week 2-3 work should both reduce
+the absolute time AND eliminate the variance (since GPU work is stable).
+
+### Next (Day 4)
+- Run modified run_babybear.sh (ICICLE rebuild + babybear NTT measurement)
+
