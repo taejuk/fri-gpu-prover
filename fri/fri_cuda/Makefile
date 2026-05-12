@@ -1,19 +1,18 @@
-# 1. 컴파일러 설정
-NVCC = nvcc
-
-# 4. 실행 파일 이름
+NVCC   = nvcc
 TARGET = fri_cuda
+SRCS   = fri_cuda.cu
+HDRS   = poseidon.cuh poseidon_constants.h
 
-# 5. 소스 파일 리스트
-# 만약 polynomial.cpp도 같이 컴파일해야 한다면 뒤에 추가해주세요.
-# 예: SRCS = fri_cuda.cu polynomial.cpp
-SRCS = fri_cuda.cu
+NVCCFLAGS = -O2 -arch=sm_70   # TITAN V = sm_70
 
-# 6. 빌드 규칙
-all: $(TARGET)
-$(TARGET): $(SRCS)
-	$(NVCC) -o $@ $^
+all: poseidon_constants.h $(TARGET)
 
-# 7. 정리 규칙
+# 상수 헤더 — Python 스크립트로 자동 생성
+poseidon_constants.h: gen_poseidon_constants.py
+	python3 $< $@
+
+$(TARGET): $(SRCS) $(HDRS)
+	$(NVCC) $(NVCCFLAGS) -o $@ $(SRCS)
+
 clean:
-	rm -f $(TARGET)
+	rm -f $(TARGET) poseidon_constants.h

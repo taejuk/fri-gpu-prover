@@ -1,0 +1,21 @@
+
+Icicle Examples: Number Theoretical Transform (NTT)
+Example parameters:
+NTT size: 1048576
+batch size: 2
+
+Generating input data for lowest and highest harmonics
+
+Init NTT domain
+
+Running NTT radix-2 alg with on-host data
+Radix2 NTT: 65 ms
+Validating output
+Validated lowest harmonics
+Validated highest harmonics
+
+Running NTT mixed-radix alg with on-host data
+MixedRadix NTT: 62 ms
+Validating output
+Validated lowest harmonics
+Validated highest harmonics

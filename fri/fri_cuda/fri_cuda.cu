@@ -7,6 +7,10 @@
 #include <sstream>
 #include <string>
 
+// Poseidon12 상수 실체화 — 이 translation unit 하나에서만 선언
+#define POSEIDON_DEFINE_CONSTANTS
+#include "poseidon.cuh"
+
 #define PAD_FACTOR 4 
 #define PAD(x) (x + (x >> PAD_FACTOR))
 
@@ -68,34 +72,8 @@ void set_constants(uint64_t p, uint64_t root, uint64_t root_pw, int log_n, uint6
     cudaMemcpyToSymbol(c_params, &host_params, sizeof(KernelParams));
 }
 
-uint64_t simple_hash64(const uint64_t* data, size_t size) {
-    uint64_t h = 0xcbf29ce484222325ULL; // FNV offset basis
-    const uint64_t prime = 0x100000001b3ULL;
-
-    for (size_t i = 0; i < size; i++) {
-        uint64_t x = data[i];
-        // 몇 번 섞어준다
-        x ^= x >> 33;
-        x *= 0xff51afd7ed558ccdULL;
-        x ^= x >> 33;
-        x *= 0xc4ceb9fe1a85ec53ULL;
-        x ^= x >> 33;
-
-        h ^= x;
-        h *= prime;
-    }
-    return h;
-}
-
-// 기존 sha256_hash 대신 사용
-std::string sha256_hash(const uint64_t* data, size_t size, uint64_t /*p*/) {
-    uint64_t h = simple_hash64(data, size);
-    std::ostringstream oss;
-    oss << std::hex << std::setfill('0');
-    // 16 hex chars (64bit) 정도만 사용
-    oss << std::setw(16) << h;
-    return oss.str();
-}
+// simple_hash64 / sha256_hash 제거됨 — Week 2: GPU Poseidon으로 교체
+// Merkle hashing 은 poseidon.cuh 의 poseidon_merkle_layer 커널 사용
 // ===== Device Functions =====
 
 __device__ __forceinline__ uint64_t mul_mod(uint64_t a, uint64_t b) {
@@ -318,19 +296,7 @@ __global__ void ifft_scale(uint64_t* d_data, int n, uint64_t n_inverse) {
     d_data[tid] = mul_mod(d_data[tid], n_inverse);
 }
 
-// Simple Merkle tree layer (GPU)
-__global__ void merkle_layer_kernel(
-    const uint64_t* d_data,
-    uint64_t* d_hashes,
-    int size) {
-    
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx >= size) return;
-    
-    // Simple hash: XOR + modular multiply (not cryptographic, for demo)
-    uint64_t val = d_data[idx];
-    d_hashes[idx] = (val * 2654435761ULL) ^ 0xdeadbeefdeadbeefULL;
-}
+// merkle_layer_kernel 제거됨 — poseidon.cuh 의 poseidon_merkle_layer 사용
 
 // ===== Host Helper Functions =====
 
@@ -387,63 +353,83 @@ struct FRICommitmentGPU {
     std::vector<float> layer_times;
 };
 
+// ── Week 2: GPU Poseidon Merkle commitment ────────────────────────────────
+// D→H memcpy + CPU hash 완전 제거.
+// 모든 Merkle hashing 이 GPU 에서 실행됨.
+// 핑퐁 버퍼 방식으로 race condition 없음.
+
 FRICommitmentGPU fri_commitment_gpu(
     uint64_t* d_evals,
-    uint64_t* d_twiddles_ifft,
+    uint64_t* /*d_twiddles_ifft — 미사용, 시그니처 호환 유지*/,
     int initial_size,
     int num_layers,
-    uint64_t p) {
-    
+    uint64_t /*p*/) {
+
     FRICommitmentGPU result;
-    uint64_t* d_current = d_evals;
-    uint64_t* d_next = nullptr;
-    int current_size = initial_size;
-    
-    cudaMalloc(&d_next, initial_size * sizeof(uint64_t));
-    
-    std::cout << "\nFRI Commitment Layers (GPU):" << std::endl;
-    
-    for(int layer = 0; layer < num_layers && current_size > 1; layer++) {
-        cudaEvent_t layer_start, layer_stop;
-        cudaEventCreate(&layer_start);
-        cudaEventCreate(&layer_stop);
-        cudaEventRecord(layer_start);
-        
-        // Copy evaluation to host for hashing
-        uint64_t* h_evals = (uint64_t*)malloc(current_size * sizeof(uint64_t));
-        cudaMemcpy(h_evals, d_current, current_size * sizeof(uint64_t), cudaMemcpyDeviceToHost);
-        
-        // Compute Merkle root (SHA256 hash of all evaluations)
-        std::string root = sha256_hash(h_evals, current_size, p);
-        result.layer_roots.push_back(root);
-        result.layer_sizes.push_back(current_size);
-        
-        std::cout << "  Layer " << layer << ": " << current_size << " points -> root: " 
-                  << root.substr(0, 16) << "..." << std::endl;
-        
-        if(current_size <= 1) break;
-        
-        // Folding: simple averaging (real FRI is more complex)
-        // p_next(x) = (p(x) + p(-x)) / 2, but we simplify to halving size
-        int next_size = current_size / 2;
-        
-        // Simple folding kernel (average adjacent values)
-        int gridSize = (next_size + blockSize - 1) / blockSize;
-        
-        cudaEventRecord(layer_stop);
-        cudaEventSynchronize(layer_stop);
-        float layer_ms = 0;
-        cudaEventElapsedTime(&layer_ms, layer_start, layer_stop);
-        result.layer_times.push_back(layer_ms);
-        
-        free(h_evals);
-        cudaEventDestroy(layer_start);
-        cudaEventDestroy(layer_stop);
-        
-        current_size = next_size;
+
+    // 핑퐁 버퍼 할당 (각각 initial_size 크기)
+    uint64_t* d_buf[2];
+    cudaMalloc(&d_buf[0], initial_size * sizeof(uint64_t));
+    cudaMalloc(&d_buf[1], initial_size * sizeof(uint64_t));
+
+    // 입력을 buf[0] 에 복사
+    cudaMemcpy(d_buf[0], d_evals, initial_size * sizeof(uint64_t),
+               cudaMemcpyDeviceToDevice);
+
+    int cur_size = initial_size;
+    int src = 0, dst = 1;
+
+    std::cout << "\nFRI Commitment Layers (GPU Poseidon12):" << std::endl;
+
+    for (int layer = 0; layer < num_layers && cur_size > 1; layer++) {
+        cudaEvent_t t0, t1;
+        cudaEventCreate(&t0);
+        cudaEventCreate(&t1);
+        cudaEventRecord(t0);
+
+        // ── GPU Poseidon Merkle 레이어 ──────────────────────────────────
+        // 현재 cur_size 개 노드 → cur_size/2 개 부모 노드
+        int n_pairs = cur_size / 2;
+        int grid    = (n_pairs + blockSize - 1) / blockSize;
+        poseidon_merkle_layer<<<grid, blockSize>>>(d_buf[src], d_buf[dst], n_pairs);
+        cudaDeviceSynchronize();
+
+        cudaEventRecord(t1);
+        cudaEventSynchronize(t1);
+        float ms = 0.0f;
+        cudaEventElapsedTime(&ms, t0, t1);
+
+        // 루트 확인용: 마지막 레이어면 host 에 가져옴
+        uint64_t root_val = 0;
+        if (n_pairs == 1) {
+            cudaMemcpy(&root_val, d_buf[dst], sizeof(uint64_t),
+                       cudaMemcpyDeviceToHost);
+        }
+
+        // 루트를 hex 문자열로 저장 (비교 가능하도록)
+        std::ostringstream oss;
+        oss << std::hex << std::setfill('0') << std::setw(16) << root_val;
+        result.layer_roots.push_back(oss.str());
+        result.layer_sizes.push_back(cur_size);
+        result.layer_times.push_back(ms);
+
+        std::cout << "  Layer " << layer
+                  << ": " << cur_size << " → " << n_pairs
+                  << "  (" << std::fixed << std::setprecision(3) << ms << " ms)";
+        if (n_pairs == 1)
+            std::cout << "  root=" << root_val;
+        std::cout << std::endl;
+
+        // 핑퐁
+        std::swap(src, dst);
+        cur_size = n_pairs;
+
+        cudaEventDestroy(t0);
+        cudaEventDestroy(t1);
     }
-    
-    cudaFree(d_next);
+
+    cudaFree(d_buf[0]);
+    cudaFree(d_buf[1]);
     return result;
 }
 
@@ -456,7 +442,31 @@ int main(int argc, char** argv) {
     uint64_t p = 2013265921ULL;
     uint64_t root = 7;
     uint64_t n = 1ULL << log_n;
-    
+
+    // Poseidon12 상수를 constant memory 에 로드
+    cudaError_t poseidon_err = poseidon_init();
+    if (poseidon_err != cudaSuccess) {
+        std::cerr << "poseidon_init failed: "
+                  << cudaGetErrorString(poseidon_err) << std::endl;
+        return 1;
+    }
+
+    {
+    	uint64_t h_in[2]  = {0ULL, 0ULL};
+    	uint64_t h_out    = 0;
+    	uint64_t *d_in, *d_out;
+    	cudaMalloc(&d_in,  2*sizeof(uint64_t));
+    	cudaMalloc(&d_out,   sizeof(uint64_t));
+    	cudaMemcpy(d_in, h_in, 2*sizeof(uint64_t), cudaMemcpyHostToDevice);
+    	poseidon_merkle_layer<<<1,1>>>(d_in, d_out, 1);
+    	cudaDeviceSynchronize();
+    	cudaMemcpy(&h_out, d_out, sizeof(uint64_t), cudaMemcpyDeviceToHost);
+    	std::cout << "Poseidon bit-exact: compress(0,0) = " << h_out
+              << (h_out == 877077992ULL ? "  ✓ PASS" : "  ✗ FAIL") << std::endl;
+        cudaFree(d_in); cudaFree(d_out);
+    }
+    std::cout << "Poseidon12 constants loaded." << std::endl;
+
     set_constants(p, root, 1ULL << 20, log_n, n);
     
     size_t bytes = n * sizeof(uint64_t);

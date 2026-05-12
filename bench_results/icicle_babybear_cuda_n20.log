@@ -1,0 +1,20 @@
+[WARNING] Defaulting to Ingonyama icicle-cuda-license-server at `5053@license.icicle.ingonyama.com`. For more information about icicle-cuda-license, please contact support@ingonyama.com.
+[INFO] ICICLE backend loaded from $ICICLE_BACKEND_INSTALL_DIR=/home/s19312000/icicle_v4/icicle/lib
+[INFO] selecting CUDA device
+
+Icicle Examples: Number Theoretical Transform (NTT)
+Example parameters:
+NTT size: 1048576
+batch size: 2
+
+Generating input data for lowest and highest harmonics
+
+Init NTT domain
+CUDA Runtime Error by: cudaGetLastError at: /icicle/backend/cuda/src/ntt/mixed_radix_ntt.cu:657
+no kernel image is available for execution on the device
+
+CUDA Runtime Error by: mxntt::generate_external_twiddles_generic( primitive_root, domain.twiddles, domain.internal_twiddles, domain.basic_twiddles, domain.max_log_size, ctx.stream) at: /icicle/backend/cuda/include/ntt/ntt.cuh:484
+no kernel image is available for execution on the device
+
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  Icicle API fails with code eIcicleError::UNKNOWN_ERROR in /home/s19312000/zk-gpu-prover/icicle/examples/c++/ntt/example.cpp:41
