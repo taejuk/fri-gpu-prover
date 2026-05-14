@@ -93,3 +93,22 @@ __global__ void generate(uint64_t* d_data, uint64_t* d_data_inv, uint64_t g, uin
     }
 }
 
+__global__ void generateWithoutInv(uint64_t* d_data, uint64_t g, int size, uint64_t p) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if(idx < size) {
+        uint64_t res = 1;
+        uint64_t base = g;
+        int exp = idx;
+
+        while(exp > 0) {
+            if(exp & 1) {
+                res = mul_mod(res, base, p);
+            }
+            base = mul_mod(base, base, p);
+            exp = exp >> 1;
+        }
+        d_data[idx] = res;
+    }
+}
+

@@ -11,9 +11,10 @@ int main(int argc, char** argv) {
     uint64_t p = 2013265921ULL;
     uint64_t root = 7;
     uint64_t n = 1ULL << log_n;
-    cudaEvent_t all_start, all_stop;
-    cudaEventCreate(&all_start);
-    cudaEventCreate(&all_stop);
+    
+    cudaStream_t stream;
+    cudaStreamCreate(&stream);
+
 
     // Poseidon12 상수를 constant memory 에 로드
     cudaError_t poseidon_err = poseidon_init();
@@ -66,8 +67,8 @@ int main(int argc, char** argv) {
     std::cout << "generator: " << generator << " " << generator_inv << std::endl;
     std::cout << "Generating twiddle factors..." << std::endl;
     int gridSize = (n + blockSize - 1) / blockSize;
-    generate<<<gridSize, blockSize>>>(d_twiddles_ntt, d_twiddles_intt, generator, generator_inv, n, p);
-    cudaDeviceSynchronize();
+    generate<<<gridSize, blockSize,0, stream>>>(d_twiddles_ntt, d_twiddles_intt, generator, generator_inv, n, p);
+    //cudaDeviceSynchronize();
 
 
     // Transfer data to device
@@ -83,30 +84,31 @@ int main(int argc, char** argv) {
     cudaEventCreate(&fri_start);
     cudaEventCreate(&fri_stop);
 
-    cudaEventRecord(total_start);
+    cudaEventRecord(total_start, stream);
 
     // ===== NTT =====
     std::cout << "\n--- Forward NTT ---" << std::endl;
-    cudaEventRecord(ntt_start);
+    cudaEventRecord(ntt_start, stream);
 
-    ntt(d_coeff, d_twiddles_ntt, n, p);
+    ntt(d_coeff, d_twiddles_ntt, n, p, stream);
 
-    cudaEventRecord(ntt_stop);
+    cudaEventRecord(ntt_stop, stream);
     cudaEventSynchronize(ntt_stop);
     float ntt_ms = 0;
     cudaEventElapsedTime(&ntt_ms, ntt_start, ntt_stop);
     std::cout << "FFT time: " << std::fixed << std::setprecision(2) << ntt_ms << " ms" << std::endl;
 
     // Copy evaluations
-    cudaMemcpy(d_evals, d_coeff, bytes, cudaMemcpyDeviceToDevice);
+    //cudaMemcpy(d_evals, d_coeff, bytes, cudaMemcpyDeviceToDevice);
+    cudaMemcpyAsync(d_evals, d_coeff, bytes, cudaMemcpyDeviceToDevice, stream);
 
     // ===== INTT =====
     std::cout << "\n--- Inverse NTT ---" << std::endl;
-    cudaEventRecord(ntt_start);
+    cudaEventRecord(ntt_start, stream);
 
-    intt(d_coeff, d_twiddles_intt, n, p);
+    intt(d_coeff, d_twiddles_intt, n, p, stream);
 
-    cudaEventRecord(ntt_stop);
+    cudaEventRecord(ntt_stop, stream);
     cudaEventSynchronize(ntt_stop);
     float intt_ms = 0;
     cudaEventElapsedTime(&intt_ms, ntt_start, ntt_stop);
@@ -115,17 +117,17 @@ int main(int argc, char** argv) {
 
     // ===== FRI Commitment =====
     std::cout << "\n--- FRI Commitment ---" << std::endl;
-    cudaEventRecord(fri_start);
+    cudaEventRecord(fri_start, stream);
 
-    FRICommitmentGPU fri = fri_commitment_gpu(d_evals, n, log_n);
+    FRICommitmentGPU fri = fri_commitment_gpu(d_evals, n, log_n, stream);
 
-    cudaEventRecord(fri_stop);
+    cudaEventRecord(fri_stop, stream);
     cudaEventSynchronize(fri_stop);
     float fri_ms = 0;
     cudaEventElapsedTime(&fri_ms, fri_start, fri_stop);
     std::cout << "FRI commitment time: " << std::fixed << std::setprecision(2) << fri_ms << " ms" << std::endl;
 
-    cudaEventRecord(total_stop);
+    cudaEventRecord(total_stop, stream);
     cudaEventSynchronize(total_stop);
     float total_ms = 0;
     cudaEventElapsedTime(&total_ms, total_start, total_stop);
@@ -134,6 +136,7 @@ int main(int argc, char** argv) {
     std::cout << "\n--- Correctness Verification ---" << std::endl;
 
     uint64_t* h_result = (uint64_t*)malloc(bytes);
+    cudaStreamSynchronize(stream);
     cudaMemcpy(h_result, d_coeff, bytes, cudaMemcpyDeviceToHost);
 
     bool all_match = true;
@@ -186,9 +189,7 @@ int main(int argc, char** argv) {
     cudaEventDestroy(ntt_stop);
     cudaEventDestroy(fri_start);
     cudaEventDestroy(fri_stop);
+    cudaStreamDestroy(stream);
 
     return 0;
-
-
-
 }

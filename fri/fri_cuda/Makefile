@@ -3,7 +3,7 @@ NVCCFLAGS = -O2 -arch=sm_70
 HDRS      = poseidon.cuh poseidon_constants.h
 
 # 빌드할 실행파일 목록 — 여기에 추가만 하면 됨
-TARGETS = main
+TARGETS = main product product_no_stream
 
 all: poseidon_constants.h $(TARGETS)
 

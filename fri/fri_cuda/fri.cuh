@@ -19,7 +19,8 @@ struct FRICommitmentGPU {
 FRICommitmentGPU fri_commitment_gpu(
   uint64_t* d_evals,
   int initial_size,
-  int num_layers
+  int num_layers,
+  cudaStream_t stream = 0
 ) {
   FRICommitmentGPU result;
 
@@ -39,16 +40,17 @@ FRICommitmentGPU fri_commitment_gpu(
     cudaEvent_t t0, t1;
     cudaEventCreate(&t0);
     cudaEventCreate(&t1);
-    cudaEventRecord(t0);
+
+    cudaEventRecord(t0, stream);
 
     // ── GPU Poseidon Merkle 레이어 ──────────────────────────────────
     // 현재 cur_size 개 노드 → cur_size/2 개 부모 노드
     int n_pairs = cur_size / 2;
     int grid    = (n_pairs + blockSize - 1) / blockSize;
-    poseidon_merkle_layer<<<grid, blockSize>>>(d_buf[src], d_buf[dst], n_pairs);
-    cudaDeviceSynchronize();
+    poseidon_merkle_layer<<<grid, blockSize, 0, stream>>>(d_buf[src], d_buf[dst], n_pairs);
+    //cudaDeviceSynchronize();
 
-    cudaEventRecord(t1);
+    cudaEventRecord(t1, stream);
     cudaEventSynchronize(t1);
     float ms = 0.0f;
     cudaEventElapsedTime(&ms, t0, t1);

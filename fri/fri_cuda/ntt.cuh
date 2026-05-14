@@ -97,7 +97,7 @@ __global__ void ntt_global_kernel(uint64_t* d_data, const uint64_t* __restrict__
 }
 
 
-void ntt(uint64_t* d_data, uint64_t* d_twiddles, int n, uint64_t p) {
+void ntt(uint64_t* d_data, uint64_t* d_twiddles, int n, uint64_t p, cudaStream_t stream = 0) {
   int gridSize = (n + blockSize - 1) / blockSize;
   int log_n = 0;
   int temp = n;
@@ -106,16 +106,16 @@ void ntt(uint64_t* d_data, uint64_t* d_twiddles, int n, uint64_t p) {
     temp >>= 1;
   }
   // 이거를 하나의 stream으로 관리하면 된다
-  bit_reverse_kernel<<<gridSize, blockSize>>>(d_data, n, log_n);
-  cudaDeviceSynchronize();
+  bit_reverse_kernel<<<gridSize, blockSize, 0, stream>>>(d_data, n, log_n);
+  //cudaDeviceSynchronize();
 
   int shared_grid_size = n / SHARED_SIZE;
-  ntt_shared_kernel<<<shared_grid_size, blockSize>>>(d_data, d_twiddles, n, p);
-  cudaDeviceSynchronize();
+  ntt_shared_kernel<<<shared_grid_size, blockSize, 0, stream>>>(d_data, d_twiddles, n, p);
+  //cudaDeviceSynchronize();
 
   for (int len = SHARED_SIZE * 2; len <= n; len <<= 1) {
     gridSize = (n/2 + blockSize - 1) / blockSize;
-    ntt_global_kernel<<<gridSize, blockSize>>>(d_data, d_twiddles, len, n, p);
-    cudaDeviceSynchronize();
+    ntt_global_kernel<<<gridSize, blockSize, 0, stream>>>(d_data, d_twiddles, len, n, p);
+    //cudaDeviceSynchronize();
   }
 }

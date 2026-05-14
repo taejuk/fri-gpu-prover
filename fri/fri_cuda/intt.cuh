@@ -80,27 +80,27 @@ __global__ void intt_scale(uint64_t* d_data, int n, uint64_t n_inverse, uint64_t
     d_data[tid] = mul_mod(d_data[tid], n_inverse, p);
 }
 
-void intt(uint64_t* d_data, uint64_t* d_twiddles_inv, int n, uint64_t p) {
+void intt(uint64_t* d_data, uint64_t* d_twiddles_inv, int n, uint64_t p, cudaStream_t stream = 0) {
   int gridSize = (n + blockSize - 1) / blockSize;
   int log_n = 0;
   int temp = n;
   while(temp > 1) { log_n++; temp >>= 1; }
   
-  bit_reverse_kernel<<<gridSize, blockSize>>>(d_data, n, log_n);
-  cudaDeviceSynchronize();
+  bit_reverse_kernel<<<gridSize, blockSize, 0, stream>>>(d_data, n, log_n);
+  //cudaDeviceSynchronize();
   
   int shared_grid_size = n / SHARED_SIZE;
-  intt_shared_kernel<<<shared_grid_size, blockSize>>>(d_data, d_twiddles_inv, n, p);
-  cudaDeviceSynchronize();
+  intt_shared_kernel<<<shared_grid_size, blockSize,0, stream>>>(d_data, d_twiddles_inv, n, p);
+  //cudaDeviceSynchronize();
   
   for (int len = SHARED_SIZE * 2; len <= n; len <<= 1) {
     gridSize = (n / 2 + blockSize - 1) / blockSize;
-    intt_global_kernel<<<gridSize, blockSize>>>(d_data, d_twiddles_inv, len, n, p);
-    cudaDeviceSynchronize();
+    intt_global_kernel<<<gridSize, blockSize, 0, stream>>>(d_data, d_twiddles_inv, len, n, p);
+    //cudaDeviceSynchronize();
   }
   
   uint64_t n_inverse = mod_inverse_prime(n, p);
   gridSize = (n + blockSize - 1) / blockSize;
-  intt_scale<<<gridSize, blockSize>>>(d_data, n, n_inverse, p);
-  cudaDeviceSynchronize();
+  intt_scale<<<gridSize, blockSize, 0, stream>>>(d_data, n, n_inverse, p);
+  //cudaDeviceSynchronize();
 }
