@@ -3,7 +3,7 @@
  * It was generated using rpcgen.
  */
 
-#include "fri_rpc.h"
+#include "simple_poseidon.h"
 
 bool_t
 xdr_field_element (XDR *xdrs, field_element *objp)
@@ -16,24 +16,23 @@ xdr_field_element (XDR *xdrs, field_element *objp)
 }
 
 bool_t
-xdr_PolyInput (XDR *xdrs, PolyInput *objp)
+xdr_CompressInput (XDR *xdrs, CompressInput *objp)
 {
 	register int32_t *buf;
 
-	 if (!xdr_u_int (xdrs, &objp->log_n))
+	 if (!xdr_field_element (xdrs, &objp->left))
 		 return FALSE;
-	 if (!xdr_array (xdrs, (char **)&objp->coeffs.coeffs_val, (u_int *) &objp->coeffs.coeffs_len, MAX_COEFFS,
-		sizeof (field_element), (xdrproc_t) xdr_field_element))
+	 if (!xdr_field_element (xdrs, &objp->right))
 		 return FALSE;
 	return TRUE;
 }
 
 bool_t
-xdr_FriResult (XDR *xdrs, FriResult *objp)
+xdr_CompressResult (XDR *xdrs, CompressResult *objp)
 {
 	register int32_t *buf;
 
-	 if (!xdr_field_element (xdrs, &objp->root))
+	 if (!xdr_field_element (xdrs, &objp->result))
 		 return FALSE;
 	return TRUE;
 }

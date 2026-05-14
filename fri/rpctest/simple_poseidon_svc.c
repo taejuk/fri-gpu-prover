@@ -3,7 +3,7 @@
  * It was generated using rpcgen.
  */
 
-#include "fri_rpc.h"
+#include "simple_poseidon.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <rpc/pmap_clnt.h>
@@ -17,24 +17,27 @@
 #endif
 
 static void
-fri_rpc_prog_1(struct svc_req *rqstp, register SVCXPRT *transp)
+simple_poseidon_prog_1(struct svc_req *rqstp, register SVCXPRT *transp)
 {
 	union {
-		PolyInput compute_fri_root_1_arg;
+		CompressInput poseidon_compress_1_arg;
 	} argument;
-	char *result;
+	union {
+		CompressResult poseidon_compress_1_res;
+	} result;
+	bool_t retval;
 	xdrproc_t _xdr_argument, _xdr_result;
-	char *(*local)(char *, struct svc_req *);
+	bool_t (*local)(char *, void *, struct svc_req *);
 
 	switch (rqstp->rq_proc) {
 	case NULLPROC:
 		(void) svc_sendreply (transp, (xdrproc_t) xdr_void, (char *)NULL);
 		return;
 
-	case compute_fri_root:
-		_xdr_argument = (xdrproc_t) xdr_PolyInput;
-		_xdr_result = (xdrproc_t) xdr_FriResult;
-		local = (char *(*)(char *, struct svc_req *)) compute_fri_root_1_svc;
+	case poseidon_compress:
+		_xdr_argument = (xdrproc_t) xdr_CompressInput;
+		_xdr_result = (xdrproc_t) xdr_CompressResult;
+		local = (bool_t (*) (char *, void *,  struct svc_req *))poseidon_compress_1_svc;
 		break;
 
 	default:
@@ -46,14 +49,17 @@ fri_rpc_prog_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		svcerr_decode (transp);
 		return;
 	}
-	result = (*local)((char *)&argument, rqstp);
-	if (result != NULL && !svc_sendreply(transp, (xdrproc_t) _xdr_result, result)) {
+	retval = (bool_t) (*local)((char *)&argument, (void *)&result, rqstp);
+	if (retval > 0 && !svc_sendreply(transp, (xdrproc_t) _xdr_result, (char *)&result)) {
 		svcerr_systemerr (transp);
 	}
 	if (!svc_freeargs (transp, (xdrproc_t) _xdr_argument, (caddr_t) &argument)) {
 		fprintf (stderr, "%s", "unable to free arguments");
 		exit (1);
 	}
+	if (!simple_poseidon_prog_1_freeresult (transp, _xdr_result, (caddr_t) &result))
+		fprintf (stderr, "%s", "unable to free results");
+
 	return;
 }
 
@@ -62,15 +68,15 @@ main (int argc, char **argv)
 {
 	register SVCXPRT *transp;
 
-	pmap_unset (FRI_RPC_PROG, FRI_V1);
+	pmap_unset (SIMPLE_POSEIDON_PROG, SIMPLE_V1);
 
 	transp = svcudp_create(RPC_ANYSOCK);
 	if (transp == NULL) {
 		fprintf (stderr, "%s", "cannot create udp service.");
 		exit(1);
 	}
-	if (!svc_register(transp, FRI_RPC_PROG, FRI_V1, fri_rpc_prog_1, IPPROTO_UDP)) {
-		fprintf (stderr, "%s", "unable to register (FRI_RPC_PROG, FRI_V1, udp).");
+	if (!svc_register(transp, SIMPLE_POSEIDON_PROG, SIMPLE_V1, simple_poseidon_prog_1, IPPROTO_UDP)) {
+		fprintf (stderr, "%s", "unable to register (SIMPLE_POSEIDON_PROG, SIMPLE_V1, udp).");
 		exit(1);
 	}
 
@@ -79,8 +85,8 @@ main (int argc, char **argv)
 		fprintf (stderr, "%s", "cannot create tcp service.");
 		exit(1);
 	}
-	if (!svc_register(transp, FRI_RPC_PROG, FRI_V1, fri_rpc_prog_1, IPPROTO_TCP)) {
-		fprintf (stderr, "%s", "unable to register (FRI_RPC_PROG, FRI_V1, tcp).");
+	if (!svc_register(transp, SIMPLE_POSEIDON_PROG, SIMPLE_V1, simple_poseidon_prog_1, IPPROTO_TCP)) {
+		fprintf (stderr, "%s", "unable to register (SIMPLE_POSEIDON_PROG, SIMPLE_V1, tcp).");
 		exit(1);
 	}
 
